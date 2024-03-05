@@ -1,0 +1,154 @@
+---
+title: "Study of Missing Data and Imputation"
+author: "Zheng(Zeb) Yang"
+thanks: "Code and data are available at: <https://github.com/iloveyz12/Penguins.git>, Acknowledge to the review of Bernice Bao"
+date: "March 03, 2024"
+date-format: long
+format: 
+  pdf: 
+    include-in-header: 
+      text: |
+        \usepackage{lscape}
+        \newcommand{\blandscape}{\begin{landscape}}
+        \newcommand{\elandscape}{\end{landscape}}
+    documentclass: article
+    geometry: margin = 1in
+    number-sections: true
+output: 
+  bookdown::pdf_document2
+toc: false
+fig_caption: yes
+nocite: '@*'
+bibliography: references.bib
+---
+
+```{r setup}
+#| echo: false
+#| message: false
+#| warning: false
+#install.packages("tidyverse")
+library(dplyr)
+library(tidyverse)
+library(palmerpenguins)
+library(mice)
+library(knitr)
+
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#summary(penguins)
+
+```
+
+
+```{r}
+#| label: tbl-two
+#| tbl-cap: "The missing data of orginal dataset of bill length of penguins"
+#| echo: false
+#| message: false
+#| warning: false
+penguins |> filter(is.na(bill_length_mm)) |> kable()
+```
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+set.seed(812)
+remove_random_penguins <-
+  sample(x = nrow(penguins), size = 3, replace = FALSE)
+
+penguins_MCAR <-
+  penguins |>
+  mutate(
+    bill_length_mm =
+      if_else(row_number() %in% remove_random_penguins, NA_real_, bill_length_mm)
+  )
+
+#summary(penguins_MCAR)
+
+```
+
+```{r}
+#| label: tbl-five
+#| tbl-cap: "The all missing data of bill length of penguins"
+#| echo: false
+#| message: false
+#| warning: false
+penguins_MCAR |> filter(is.na(bill_length_mm)) |> kable()
+```
+
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#Impute the mean of observations without missing data
+penguins_MCAR_imputed <- penguins_MCAR |> mutate(
+  bill_length_mm_imputed_mean = if_else(is.na(bill_length_mm), mean(bill_length_mm, na.rm = TRUE),       
+                           bill_length_mm)
+)
+
+#summary(penguins_MCAR_imputed)
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#Use multiple imputation
+
+multiple_imputation <-
+  mice(
+    penguins_MCAR,
+    print = FALSE
+  )
+
+mice_estimates <-
+  complete(multiple_imputation) |>
+  as_tibble()
+
+
+penguins_MCAR_imputed <- penguins_MCAR_imputed |>
+  mutate(bill_length_mm_multiple = mice_estimates$bill_length_mm,
+        bill_length_mm_actual = penguins$bill_length_mm)
+```
+
+
+```{r}
+#| label: tbl-last
+#| tbl-cap: "Comparing the imputed values of bill length for penguins and the overall mean bill length"
+#| echo: false
+#| message: false
+#| warning: false
+penguins_MCAR_imputed |> filter(is.na(bill_length_mm)) |>
+  select(species, island, bill_length_mm_imputed_mean, bill_length_mm_multiple, bill_length_mm_actual) |>
+  kable(col.names = c("species", "Island", "Input mean", "Multiple imputation	", "Actual"))
+```
+
+
+
+# Methodology and Result#
+First of all, I summarized and filtered the dataset. As you can see in @tbl-two, I found that there were two missing value of bill length of penguins in the original dataset. Then, I set the seed and randomly selected three rows of the dataset of penguins and removed the bill length values to make the dataset has some missing at random value. Therefore, now, as you can see in @tbl-five, I have five missing data of bill length of penguins in total. Then, I imputed the mean of observations without missing data. To impute the mean, I constructed a second dataset with the observations with missing data removed. I then computed the mean of the bill length, and imputed that into the missing values in the original dataset. The other way to impute the missing data is using multiple imputation. Now, I have the imputed dataset and as you can see in the @tbl-last, the missing bill length of penguins have been imputed by imputed mean and multiple imputation. The column of actual value in @tbl-last is the actual bill length of penguin, so if there is a value of actual value, then it means that this row is selected randomly to be removed.
+
+ The simulation was conducted using the statistical programming language R [@citeR]. The data is from data source palmerpenguins[@palmerpenguins]. To further enable the analysis I employed the use of the package of knitr[@knitr], mice[@mice] and dplyr[@dplyr].
+
+
+
+
+
+
+
+
+# Analysis #
+Compare the imputed value with the actual value, I have found that the value of multiple imputation is closer to the actual data than imputing mean in our case. However, none of thease approaches can be naively imposed. For instance, the one Chinstrap penguin's bill length in Dream Island should be 49.8mm. Imputing mean across all species and islands would result in an estimate of 43.94mm and multiple imputation results in an estimate of 45.7, which are both too low. 
+
+\clearpage
+
+
+# References {.unnumbered}
